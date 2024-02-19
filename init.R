@@ -15,16 +15,9 @@ set.seed(seed)
 dt_list = list()
 
 dt_list$fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%  
-  # mutate(ClaimNb = pmin(ClaimNb/Exposure,15)) %>% 
-  # mutate(ClaimNb = pmin(ClaimNb,3)) %>% 
-  
+
   mutate(  Exposure = pmin(1, Exposure),
            ClaimNb = pmin(15, ClaimNb / Exposure)
-           # VehPower = pmin(12, VehPower),
-           # VehAge = pmin(20, VehAge),
-           # VehGas = factor(VehGas),
-           # DrivAge = pmin(85, DrivAge),
-           # logDensity = log(Density)
            ) %>% 
   slice(sample(1:nrow(.),replace = F))
 
