@@ -14,7 +14,7 @@ set.seed(seed)
 # load data objects
 dt_list = list()
 
-dt_list$fre_mtpl2_freq = read.csv("pricing/data/freMTPL2freq.csv") %>%  
+dt_list$fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%  
   # mutate(ClaimNb = pmin(ClaimNb/Exposure,15)) %>% 
   # mutate(ClaimNb = pmin(ClaimNb,3)) %>% 
   
@@ -187,7 +187,6 @@ preproc = function(
     model_ae=keras_model(inputs=Input,outputs=Output)
     
     #Optimize the cross entropy
-    # THINK IF IT SHOULDN"T HAVE NOISE IN TRAINING DATA OR HOLD OUT FOR VALIDATION / BACK TO THE PAPER
     model_ae %>% 
       compile(optimizer=optimizer_nadam(lr=learning_rate),
               loss="categorical_crossentropy")  %>% 

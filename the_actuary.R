@@ -1,9 +1,8 @@
-source("pricing/init.R")
-source("pricing/init_py.R")
-source("pricing/models/feed_forward_neural_net.R")
-source("pricing/models/localGLMnet.R")
-source("pricing/models/CANN.R")
-source("pricing/models/XGBoost.R")
+source("init.R")
+source("init_py.R")
+source("models/feed_forward_neural_net.R")
+source("models/localGLMnet.R")
+source("models/CANN.R")
 
 CV = 5
 
@@ -34,8 +33,7 @@ for (i in 1:CV){
                                           glm = NA,
                                           ff_nn = NA,
                                           localGLMnet = NA,
-                                          CANN = NA,
-                                          XGB = NA) %>% 
+                                          CANN = NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
     
   encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
@@ -131,20 +129,6 @@ for (i in 1:CV){
 
   losses$CANN[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                     y_pred = results[[paste0("CV_",i)]]$CANN)
-  
-  # XGBoost  -------------------------------------------
-  
-  models[[paste0("CV_",i)]]$XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                      y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
-                                                      vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                 y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows])
-  )
-  
-  results[[paste0("CV_",i)]]$XGB = predict(models[[paste0("CV_",i)]]$XGB_model,
-                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])))
-  
-  losses$XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                   y_pred = results[[paste0("CV_",i)]]$XGB)
   
 }
 
