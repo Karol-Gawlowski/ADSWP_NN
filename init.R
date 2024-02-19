@@ -10,7 +10,6 @@ rename = dplyr::rename
 
 seed = 2
 set.seed(seed)
-# https://paperswithcode.com/paper/model-agnostic-interpretable-and-data-driven/review/
 
 # load data objects
 dt_list = list()
@@ -28,42 +27,6 @@ dt_list$fre_mtpl2_freq = read.csv("pricing/data/freMTPL2freq.csv") %>%
            # logDensity = log(Density)
            ) %>% 
   slice(sample(1:nrow(.),replace = F))
-
-dt_list$fre_mtpl1_freq = read.csv("pricing/data/freMTPL/freMTPLfreq.csv") %>% 
-  mutate(Brand = tolower(
-    substr(Brand,
-           start = 0,
-           stop = replace_na(stringi::stri_locate_first(Brand,regex = " "),
-                             length(Brand))[,2]-2)
-  ),
-  Region =  tolower(
-    unlist(lapply(str_extract_all(Region, "[[:upper:]]"),
-                  paste,
-                  collapse="")))) %>% 
-  rename(IDpol=PolicyID)
-
-# dt_list$fre_mtpl1_sev = read.csv("pricing/data/freMTPL/freMTPLsev.csv")
-
-dt_list$data_car_freq = read.csv("pricing/data/datacar.csv")[,-1] %>%
-  mutate(ClaimNb = numclaims/exposure) %>%
-  select(-X_OBSTAT_,-claimcst0,-clm,-numclaims) %>% 
-  rename(Exposure=exposure)
-
-dt_list$data_car_sev = read.csv("pricing/data/datacar.csv")[,-1] %>%
-  mutate(Sev = claimcst0/exposure) %>%
-  select(-X_OBSTAT_,-claimcst0,-clm,-numclaims) 
-
-dt_list$allstate_sev = read.csv("pricing/data/Allstate/train.csv") %>% 
-  mutate_at(.vars = paste0("cat",1:72),.funs = function(x){(x=="A")*1})
-
-dt_list$workcomp = NULL
-
-lapply(dt_list, summary)
-
-# old
-# poiss_loss = function(y_true,y_pred){
-#   y_pred - y_true * log(y_pred,base = exp(1))
-# }
 
 poiss_loss = function(y_true,y_pred){
   y_true*log(y_true/y_pred)-(y_true-y_pred)
@@ -293,163 +256,6 @@ preproc = function(
 }
 
 
-bayes_wrapper = function(k,
-                         FUN = train_XGBoost,
-                         PARS = makeParamSet(
-                           makeNumericParam("eta",                    lower = 0.005, upper = 0.1),
-                           makeIntegerParam("gamma",                  lower = 1,     upper = 5),
-                           makeIntegerParam("max_depth",              lower= 2,      upper = 10),
-                           makeIntegerParam("min_child_weight",       lower= 100,    upper = 2000),
-                           makeNumericParam("subsample",              lower = 0.20,  upper = 1.0),
-                           makeNumericParam("colsample_bytree",       lower = 0.20,  upper = 1.0)
-                         ),
-                         bayes_setup = list(rand_runs = 30,
-                                            bayes_runs = 30,
-                                            correction = 10^-7)){
-  
-  # sink("other/sink.txt")
-  
-  fn_type = substitute(FUN)
-  
-  param_helper = function(pars,fn = fn_type){
-    
-    if(fn == "train_XGBoost"){
-      
-      toreturn = as.list(as.numeric(pars))
-      
-      names(toreturn) = names(pars)
-      
-    }else{
-      
-        toreturn = list(lr = as.numeric(pars["lr"]),
-          
-          n_layers = as.integer(pars["n_layers"]),
-          
-          n_units = 2^as.integer(c(pars["units_1"],
-                                   pars["units_2"],
-                                   pars["units_3"],
-                                   pars["units_4"],
-                                   pars["units_5"]))[1:as.integer(pars["n_layers"])],
-          
-          n_activ = c(pars["activ_1"],
-                      pars["activ_2"],
-                      pars["activ_3"],
-                      pars["activ_4"],
-                      pars["activ_5"])[1:as.integer(pars["n_layers"])],
-          
-          n_dropout = c(pars["drop_1"],
-                        pars["drop_2"],
-                        pars["drop_3"],
-                        pars["drop_4"],
-                        pars["drop_5"])[1:as.integer(pars["n_layers"])]) 
-          
-    }
-    
-    return(toreturn)
-    
-  }
-  
-  
-  obj.fun <- smoof::makeSingleObjectiveFunction(
-    
-    fn =   function(x){
-      
-      set.seed(42)
-      
-      iter = do.call(FUN,
-                     append(list(dt = k$dt_train,
-                                 y = k$dt_train_target + bayes_setup$correction,
-                                 vdt = list(x_val = k$dt_test, 
-                                            y_val = k$dt_test_target + bayes_setup$correction)),
-                            param_helper(pars = x)))
-      
-      # PL = poiss_loss(y_true = k$dt_test_target + bayes_setup$correction,
-      #                 y_pred = pmax(predict(iter,k$dt_test),mean(predict(iter,k$dt_test),na.rm=T)))
-      
-      PL = poiss_loss(y_true = k$dt_test_target + bayes_setup$correction,
-                      y_pred = predict(iter,k$dt_test))
-      
-      if(is.na(mean(PL))|is.nan(mean(PL))){browser()}
-      
-      # if(run_number == 1 | mean(PL,na.rm=T)<mean(save_best_preds,na.rm=T)){
-      if(run_number == 1 | mean(PL)<mean(save_best_preds)){
-        
-        save_best_preds <<- PL
-        
-      }
-      
-      run_number <<- run_number + 1
-      
-      setTxtProgressBar(pb,run_number)
-      
-      return(mean(PL))
-      
-    },
-    par.set = PARS,
-    minimize = TRUE 
-  )
-  
-  des = generateDesign(n = bayes_setup$rand_runs,
-                       par.set = getParamSet(obj.fun),
-                       fun = lhs::randomLHS)
-  
-  control = makeMBOControl() %>%
-    setMBOControlTermination(., iters = bayes_setup$bayes_runs)
-  
-  pb = txtProgressBar(min = 0, max = bayes_setup$bayes_runs+bayes_setup$rand_runs, initial = 0) 
-  run_number = 1
-  # sink(NULL)
-  setTxtProgressBar(pb,run_number)
-  # sink("other/sink.txt")
-  
-  save_best_preds = NA
-  
-  run = mlrMBO::mbo(fun = obj.fun,
-                    design = des,
-                    # learner = makeLearner("regr.km", predict.type = "se", covtype = "matern3_2", control = list(trace = FALSE)),
-                    control = control, 
-                    show.info = TRUE)
-  
-  close(pb)
-  run_number = NULL
-  
-  path = run$opt.path$env$path %>% 
-    mutate(n = row_number(),.before=everything(),
-           path = c(rep("random",bayes_setup$rand_runs),rep("bayes",bayes_setup$bayes_runs))) %>% 
-    arrange(y) 
-  
-  # browser()
-  
-  toreturn = list(path = path,
-                  best_preds = data.frame(actual = k$dt_test_target+bayes_setup$correction,
-                                          pred = save_best_preds))
-  
-  save_best_preds = NULL
-  
-  # sink(NULL)
-  
-  return(toreturn)
-  
-}
-
-glm_wrapper = function(k,correction = 10^-7){
-  
-  model = glm(formula = k$dt_train_target ~ .,
-              family = poisson(),
-              data = data.frame(k$dt_train))
-  
-  PL = poiss_loss(y_true = k$dt_test_target+correction,
-                  y_pred = predict(model,data.frame(k$dt_test),type="response"))
-  
-  bp = data.frame(actual = k$dt_test_target+correction,
-                  pred = PL)
-  
-  return(list(best_preds = bp,
-              model = model))
-  
-}
-
-
 custom_poisson <- function( y_true, y_pred ) {
   # Mario V. Wüthrich , Michael Merz
   # Statistical Foundations of Actuarial Learning and its Applications
@@ -487,58 +293,6 @@ poisson_deviance = function(y_true,y_pred,keras=F,correction = +10^-7){
   
 }
 
-# single lift - vectors as input
-single_lift = function(y_true,
-                       y_pred,
-                       tiles = 5,
-                       display_names = c(y_true = "y_true",
-                                         y_pred = "y_pred"),
-                       type = "col") #or "line"
-  {
-  
-  data.frame(true = y_true,
-             pred = y_pred) %>% 
-    mutate(tiles = ntile(pred,tiles)) %>% 
-    group_by(tiles) %>% 
-    summarise(true = mean(true),
-              pred = mean(pred)) %>% 
-    pivot_longer(cols = !tiles) %>% 
-    mutate(name = case_when(name=="true" ~ display_names["y_true"],
-                            name=="pred" ~ display_names["y_pred"])) %>% 
-    ggplot(aes(x = tiles,y=value,fill=name,color=name,type=name))+
-    {if(type=="col") geom_col(position = "dodge") else geom_point()}+
-    {if(type=="line") geom_line(size=1) }+
-    ggtitle(paste0(display_names["y_pred"]," single lift"))
-  
-}
-
-double_lift=function(y_true,
-                     y_pred_1,
-                     y_pred_2,
-                     display_names = c(y_true = "y_true",
-                                   y_pred_1 = "y_pred_1",
-                                   y_pred_2 = "y_pred_2"),
-                     tiles = 5){
-  
-  data.frame(true = y_true,
-             pred1 = y_pred_1,
-             pred2 = y_pred_2) %>% 
-    mutate(tiles = ntile(pred1/pred2,tiles)) %>% 
-    group_by(tiles) %>% 
-    summarise(true = mean(true),
-              pred1 = mean(pred1),
-              pred2 = mean(pred2)) %>% 
-    pivot_longer(cols = !tiles) %>% 
-    mutate(name = case_when(name=="true" ~ display_names["y_true"],
-                            name=="pred1" ~ display_names["y_pred_1"],
-                            name=="pred2" ~ display_names["y_pred_2"])) %>% 
-    ggplot(aes(x = tiles,y=value,fill=name))+
-    geom_col(position = "dodge")+
-    ggtitle(paste0(display_names["y_pred_1"]," vs ",display_names["y_pred_2"]))
-  
-}
-
-
 multiple_lift = function(y_true,
                          glm,
                          y_pred_df,
@@ -560,32 +314,5 @@ multiple_lift = function(y_true,
     geom_point()+
     geom_line()
     
-}
-
-
-multiple_lift2 = function(y_true,
-                          y_pred_df,
-                          tiles = 10){
-  
-  tiles_list = list()
-
-  for (i in colnames(y_pred_df)){
-    
-    tiles_list[[i]] = data.frame(model = y_pred_df[[i]],
-                                 actual = y_true) %>% 
-      mutate(tiles = ntile(model,tiles)) %>%
-    group_by(tiles) %>% 
-      summarise(model = mean(model)) %>% 
-      pull(model)
-  }
-
-  bind_cols(tiles_list) %>% 
-    mutate(t = 1:tiles) %>% 
-    set_names(c(colnames(y_pred_df),"tiles")) %>% 
-    pivot_longer(cols = !tiles) %>% 
-    ggplot(aes(x = tiles,y=value,group=name,color=name,linetype=name))+
-    geom_point()+
-    geom_line()
-  
 }
 

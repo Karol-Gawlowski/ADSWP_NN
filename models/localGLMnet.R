@@ -49,7 +49,6 @@ train_LocalGLMnet = function(dt,
 
   model_localGLMnet %>% 
     compile(
-    # loss= 'poisson',
     loss = custom_poisson,
     optimizer= optimizer_adam(learning_rate = lr)
   ) 
@@ -58,7 +57,6 @@ train_LocalGLMnet = function(dt,
     fit(
       list(as.matrix(dt)), list(as.matrix(as.numeric(y))),
       validation_data = vdt,
-      # batch_size = 2^17,# 2^15
       batch_size = bs,
       epochs = ep,
       shuffle = T,

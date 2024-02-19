@@ -14,13 +14,11 @@ train_CANN = function(dt,
                       
 ){
   
-  #size_hom=mean(y)
   w_learn_exp=exp(w) #returning to glm_fit on traning set.
   size_hom=sum(y)/sum(w_learn_exp)
   
   
   if(var(c(n_layers,length(n_units),length(n_activ))) != 0){stop("inconsistent n_h_layers, n_activ, n_units")}
-  
   
   # neural network structure
   Design  <- layer_input(shape = c(dim(dt)[2]), dtype = 'float32', name = 'design') #Input layer
