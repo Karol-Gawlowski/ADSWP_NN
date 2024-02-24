@@ -14,6 +14,7 @@ set.seed(seed)
 # load data objects
 dt_list = list()
 
+# Data
 dt_list$fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%  
 
   mutate(  Exposure = pmin(1, Exposure),
@@ -21,10 +22,12 @@ dt_list$fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%
            ) %>% 
   slice(sample(1:nrow(.),replace = F))
 
+#Poisson Deviance - Loss function
 poiss_loss = function(y_true,y_pred){
   y_true*log(y_true/y_pred)-(y_true-y_pred)
 }
 
+#Encoding Function
 preproc = function(
     dt_frame,       # a dataframe
     y,              # target colname required if present in x or for target enc
@@ -248,6 +251,7 @@ preproc = function(
 }
 
 
+# Poisson Deviance 
 custom_poisson <- function( y_true, y_pred ) {
   # Mario V. Wüthrich , Michael Merz
   # Statistical Foundations of Actuarial Learning and its Applications
