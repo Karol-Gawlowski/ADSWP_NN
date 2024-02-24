@@ -4,10 +4,11 @@ source("models/feed_forward_neural_net.R")
 source("models/localGLMnet.R")
 source("models/CANN.R")
 
-CV = 5
+CV = 5 #K Folds
 
 CV_vec = sample(1:CV,replace = T,size = nrow(dt_list$fre_mtpl2_freq))
 
+#Lists
 models = list()
 results = list()
 losses = data.frame(CV = paste0("CV_",1:CV),
@@ -22,12 +23,14 @@ losses = data.frame(CV = paste0("CV_",1:CV),
 # losses = fitted$losses
 # results = fitted$results
 
+#Cross Validation
 for (i in 1:CV){
   
   train_rows = which(CV_vec != i)
   
   models[[paste0("CV_",i)]] = list()
-  
+
+  #DB creation
   results[[paste0("CV_",i)]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
                                           actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
                                           glm = NA,
@@ -43,7 +46,8 @@ for (i in 1:CV){
                     bypass = NULL,
                     exclude = c("IDpol","Exposure"),
                     verbose = T)
-  
+
+  #Train - Test split
   train = encoder(dt_list$fre_mtpl2_freq[train_rows,])
   test = encoder(dt_list$fre_mtpl2_freq[-train_rows,])
   
@@ -52,7 +56,7 @@ for (i in 1:CV){
   losses$homog[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                     y_pred = results[[paste0("CV_",i)]]$homog)
   
-  # glm ------------------------------------------------- 
+  # GLM ------------------------------------------------- 
   
   models[[paste0("CV_",i)]]$glm_model = glm(formula = ClaimNb~.,
                                             family = poisson,
@@ -64,7 +68,7 @@ for (i in 1:CV){
   losses$glm[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                   y_pred = results[[paste0("CV_",i)]]$glm)
 
-  # ff_nn -------------------------------------------------
+  # ff_nn - Feed Forward Neural Network ------------------------------------------------
 
   models[[paste0("CV_",i)]]$ff_nn_model = train_ff_nn(dt = train[,-1],
                                                       y = train[,1],
@@ -103,8 +107,9 @@ for (i in 1:CV){
   losses$localGLMnet[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                            y_pred = results[[paste0("CV_",i)]]$localGLMnet)
 
-  # CANN  -------------------------------------------
-  #weights
+  # CANN  - Combined Actuarial Neural Network ------------------------------------------
+  
+  #weights - used as initialization
   learn_GLM <- fitted(models[[paste0("CV_",i)]]$glm_model)
   test_GLM <- results[[paste0("CV_",i)]]$glm
 
