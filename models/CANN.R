@@ -4,13 +4,13 @@ train_CANN = function(dt,
                       w, # weights
                       n_layers = 2, # Layers excluding the input layer, the output layer and the GLM.
                       n_units = c(20, 15), # dim of the Layers excluding the input layer, the output layer and the GLM.
-                      n_activ = c('relu','relu'),
-                      lr = 0.001, # parameter not used
-                      bs = 2^12,
-                      ep=10,
-                      # loss_func='poisson',
-                      underweigthing=0,
-                      verbo=10
+                      n_activ = c('relu','relu'), #activation functions
+                      lr = 0.001, # learning rate
+                      bs = 2^12, # batch size
+                      ep=10, # epochs
+                      # loss_func='poisson', #delete
+                      #underweigthing=0, #delete
+                      verbo=10 #verbose
                       
 ){
   
