@@ -1,14 +1,14 @@
 train_ff_nn = function(dt,
                        y,
-                       vdt,
-                       n_layers = 2,
-                       n_units = c(16,4),
-                       n_activ = c("sigmoid","sigmoid"),
-                       n_dropout = c(F,F),
-                       lr = 0.001,
-                       bs = 2^13,
-                       ep = 500,
-                       verbo = 0
+                       vdt, #validation
+                       n_layers = 2, #layers
+                       n_units = c(16,4), #units
+                       n_activ = c("sigmoid","sigmoid"), #activation functions
+                       n_dropout = c(F,F), #dropout
+                       lr = 0.001, #learning rate
+                       bs = 2^13, #batch size
+                       ep = 500, #epochs
+                       verbo = 0 #verbose
 ){
   
   tensorflow::set_random_seed(1,disable_gpu = F)
