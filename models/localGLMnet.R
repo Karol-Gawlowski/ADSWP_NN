@@ -1,14 +1,14 @@
 train_LocalGLMnet = function(dt,
                              y,
-                             vdt,
+                             vdt, #validation set
                              n_layers = 3, #Layers excluding the input layer, the output layer and the GLM.
                              n_units = c(20, 15, 10), #dim of the Layers excluding the input layer, the output layer and the GLM.
                              n_activ = c('tanh','tanh','tanh'),
                              n_dropout = c(F,F),
-                             lr = 0.001, #parameter not used
-                             bs = 2^14,
-                             ep = 500,
-                             verbo = 0
+                             lr = 0.001, #learning rate
+                             bs = 2^14, #batch size
+                             ep = 500, #epochs
+                             verbo = 0 #verbose
 ){
   
   log_size_hom <- log(mean(y))
