@@ -9,7 +9,6 @@ train_CANN = function(dt,
                       bs = 2^12, # batch size
                       ep=10, # epochs
                       # loss_func='poisson', #delete
-                      #underweigthing=0, #delete
                       verbo=10 #verbose
                       
 ){
