@@ -8,7 +8,6 @@ train_CANN = function(dt,
                       lr = 0.001, # learning rate
                       bs = 2^12, # batch size
                       ep=10, # epochs
-                      # loss_func='poisson', #delete
                       verbo=10 #verbose
                       
 ){
