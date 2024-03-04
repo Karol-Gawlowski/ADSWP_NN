@@ -277,10 +277,6 @@ poisson_deviance = function(y_true,y_pred,keras=F,correction = +10^-7){
     
   }else{
     
-    # pd = rep(NA,length(true))
-    # pd[true==0] = pred[true==0]
-    # pd[true!=0] = true[true!=0] * log(true[true!=0]/pred[true!=0]) + pred[true!=0] - true[true!=0]
-    
     pd =  mean((y_pred - y_true - y_true * log((y_pred+correction)/(y_true+correction))))
     
   }
@@ -289,26 +285,29 @@ poisson_deviance = function(y_true,y_pred,keras=F,correction = +10^-7){
   
 }
 
+
 multiple_lift = function(y_true,
-                         glm,
-                         y_pred_df,
-                         tiles = 10){
+                          y_pred_df,
+                          tiles = 10){
   
-  cbind(y_true = y_true,pred_glm = glm, y_pred_df) %>%
-    mutate(glm_tiles = ntile(pred_glm,tiles)) %>%
-    # pivot_longer(cols = c(colnames(y_pred_df),pred_glm)) %>%
-    group_by(glm_tiles) %>%
-    # summarise_all(vars(c(colnames(y_pred_df),pred_glm)),.funs=mean) %>%
-    summarise(avg = mean(y_true),
-              glm = mean(pred_glm),
-              nn = mean(ff_nn),
-              localGLMnet = mean(localGLMnet),
-              CANN = mean(CANN)) %>%
-    ungroup() %>% 
-    pivot_longer(cols = !glm_tiles) %>% 
-    ggplot(aes(x = glm_tiles,y=value,group=name,color=name,linetype=name))+
+  tiles_list = list()
+  
+  for (i in colnames(y_pred_df)){
+    
+    tiles_list[[i]] = data.frame(model = y_pred_df[[i]],
+                                 actual = y_true) %>% 
+      mutate(tiles = ntile(model,tiles)) %>%
+      group_by(tiles) %>% 
+      summarise(model = mean(model)) %>% 
+      pull(model)
+  }
+  
+  bind_cols(tiles_list) %>% 
+    mutate(t = 1:tiles) %>% 
+    set_names(c(colnames(y_pred_df),"tiles")) %>% 
+    pivot_longer(cols = !tiles) %>% 
+    ggplot(aes(x = tiles,y=value,group=name,color=name,linetype=name))+
     geom_point()+
     geom_line()
-    
+  
 }
-

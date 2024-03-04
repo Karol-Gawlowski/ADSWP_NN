@@ -18,8 +18,9 @@ losses = data.frame(CV = paste0("CV_",1:CV),
                     CANN = NA,
                     XGB = NA)
 
-# fitted = readRDS("The_Actuary_final_results_wo_models_v5.rds")
-# 
+# to retrive values from the article:
+# fitted = readRDS("final_results")
+
 # losses = fitted$losses
 # results = fitted$results
 
@@ -29,7 +30,7 @@ for (i in 1:CV){
   train_rows = which(CV_vec != i)
   
   models[[paste0("CV_",i)]] = list()
-
+  
   #DB creation
   results[[paste0("CV_",i)]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
                                           actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
@@ -38,7 +39,7 @@ for (i in 1:CV){
                                           localGLMnet = NA,
                                           CANN = NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
-    
+  
   encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
                     y = "ClaimNb",
                     num = "norm",
@@ -46,7 +47,7 @@ for (i in 1:CV){
                     bypass = NULL,
                     exclude = c("IDpol","Exposure"),
                     verbose = T)
-
+  
   #Train - Test split
   train = encoder(dt_list$fre_mtpl2_freq[train_rows,])
   test = encoder(dt_list$fre_mtpl2_freq[-train_rows,])
@@ -67,9 +68,9 @@ for (i in 1:CV){
   
   losses$glm[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                   y_pred = results[[paste0("CV_",i)]]$glm)
-
+  
   # ff_nn - Feed Forward Neural Network ------------------------------------------------
-
+  
   models[[paste0("CV_",i)]]$ff_nn_model = train_ff_nn(dt = train[,-1],
                                                       y = train[,1],
                                                       vdt = list(x_val = test[,-1],
@@ -82,14 +83,14 @@ for (i in 1:CV){
                                                       lr = 0.005,
                                                       bs = 2^12,
                                                       ep = 1000)
-
+  
   results[[paste0("CV_",i)]]$ff_nn = predict(models[[paste0("CV_",i)]]$ff_nn_model,test[,-1])[,1]
-
+  
   losses$ff_nn[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                      y_pred = results[[paste0("CV_",i)]]$ff_nn)
-
+  
   # LocalGLMnet -------------------------------------------
-
+  
   models[[paste0("CV_",i)]]$localGLMnet_model = train_LocalGLMnet(dt = train[,-1],
                                                                   y = train[,1],
                                                                   vdt = list(x_val = test[,-1],
@@ -101,22 +102,22 @@ for (i in 1:CV){
                                                                   lr = 0.005,
                                                                   bs = 2^12,
                                                                   ep = 1000)
-
+  
   results[[paste0("CV_",i)]]$localGLMnet = predict(models[[paste0("CV_",i)]]$localGLMnet_model,test[,-1])[,1]
-
+  
   losses$localGLMnet[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                            y_pred = results[[paste0("CV_",i)]]$localGLMnet)
-
+  
   # CANN  - Combined Actuarial Neural Network ------------------------------------------
   
   #weights - used as initialization
   learn_GLM <- fitted(models[[paste0("CV_",i)]]$glm_model)
   test_GLM <- results[[paste0("CV_",i)]]$glm
-
+  
   w_learn=as.matrix(log(learn_GLM))
   w_test=as.matrix(log(test_GLM))
-
-
+  
+  
   models[[paste0("CV_",i)]]$CANN_model = train_CANN(dt = train[,-1],
                                                     y = train[,1],
                                                     vdt = list(x_val =list( test[,-1], w_test),
@@ -129,9 +130,9 @@ for (i in 1:CV){
                                                     lr = 0.005,
                                                     bs = 2^12,
                                                     ep = 1000)
-
+  
   results[[paste0("CV_",i)]]$CANN = predict(models[[paste0("CV_",i)]]$CANN_model,list(as.matrix(test[,-1]),w_test))[,1]
-
+  
   losses$CANN[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                     y_pred = results[[paste0("CV_",i)]]$CANN)
   
@@ -140,10 +141,10 @@ for (i in 1:CV){
 # save files
 # saveRDS(list(losses = losses,
 #              results = results,
-#              models = models),file = "The_Actuary_final_results_v6.rds")
+#              models = models),file = "results_v2.rds")
 # 
 # saveRDS(list(losses = losses,
-#              results = results),file = "The_Actuary_final_results_wo_models_v6.rds")
+#              results = results),file = "results_wo_models_v2.rds")
 
 analysis = bind_rows(results,.id = "id")  %>% 
   select(id,actual,glm,ff_nn,localGLMnet,CANN,homog) %>% 
@@ -155,7 +156,7 @@ analysis = bind_rows(results,.id = "id")  %>%
 
 # ovarall and per fold results
 rbind(losses,
-        losses %>%
+      losses %>%
         pivot_longer(cols = !CV) %>%
         group_by(name) %>%
         summarise(mean_poiss = mean(value)) %>%
@@ -164,8 +165,9 @@ rbind(losses,
         mutate(CV = "mean_poiss"))
 
 losses %>% 
-  mutate_if(is.numeric,.funs = function(x)(x*c(data.frame(k=CV_vec) %>% 
-                                                 count(k) %>% pull(n)))) %>% 
+  mutate_if(is.numeric,.funs = function(x){
+    x*c(data.frame(k=CV_vec) %>% 
+          count(k) %>% pull(n))}) %>% 
   janitor::adorn_totals()
 
 analysis %>%
@@ -182,7 +184,7 @@ analysis %>%
   xlab("Poisson deviance")
 
 # lift chart
-multiple_lift2(y_true = bind_rows(results,.id = "id") %>% pull(actual),
+multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
                y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
                                                                     ff_nn,
                                                                     localGLMnet,
