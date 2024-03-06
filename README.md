@@ -1,6 +1,6 @@
 **ADSWP_NN**
 
-Here you can find the code to the article "Gladiators Ready" from Gawlowski K., Condon J., Harrington J., Ruffini D. - published in "The Actuary" in March, available from [link](http://example.com "The Actuary")
+Here you can find the code to the article "Gladiators Ready" from Gawlowski K., Condon J., Harrington J., Ruffini D. - published in "The Actuary" in March, available from [link](https://www.theactuary.com/2024/03/05/gladiators-ready-pricing-models-fight-it-out "The Actuary")
 
 **Repository Structure:**
 
