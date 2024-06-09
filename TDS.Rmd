@@ -1,0 +1,607 @@
+---
+title: "TDS"
+output: html_document
+date: "2024-06-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE,echo = TRUE,message = FALSE, warning = FALSE)
+# knitr::opts_chunk$set()
+
+
+```
+
+## Introduction
+
+Insurers face a fascinating challenge every day in conducting business; they must sell a product for a certain price that carries an uncertain cost. In tackling this problem, insurers strive to build the best possible predictive risk and pricing models, to distinguish between the low and high-risk customers in the marketplace. The span of statistical models used for this task is wide and varied, from the enduring GLM to the intricate Feed Forward Neural Network (FFNN). Recently, some very promising new models have arrived on the scene, including the Combined Actuarial Neural Network (CANN), and the LocalGLMnet. Both of these models combine GLMs and neural networks to avail of the relative strengths of each architecture. This article will explain how the above four model architectures work, and will test how they perform on a dataset of real-world motor insurance policies. Buckle up!  
+
+
+
+(Note that the Actuarial Data Science Working Party would like to acknowledge the following authors for their original development and research on these architectures: Mario V. Wüthrich, Michael Merz and Jürg Schelldorfer for CANN; Ronald Richman and Mario V. Wüthrich for LocalGLMnet.)
+
+
+## Project Setup
+
+To follow along, you can refer to the github repository or download the data we use from there. For the detailed information about package versions and installation guides you can refer to the appendix. 
+
+
+First we set up our project and pull the data:
+
+```{r,eval=T}
+
+library(tidyverse)
+library(xgboost)
+library(reticulate)
+library(tensorflow)
+library(keras)
+
+slice = dplyr::slice
+rename = dplyr::rename
+
+seed = 2
+set.seed(seed)
+
+fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%  
+  
+  mutate(  Exposure = pmin(1, Exposure),
+           ClaimNb = pmin(15, ClaimNb / Exposure)
+  ) %>% 
+  slice(sample(1:nrow(.),replace = F))
+
+```
+
+
+<WRITE AT LEAST WHAT ARE THE Y and X's>
+
+We start with just a reminder of a GLM and a feed forward neural network. If you are comfortable with both models feel free to just glance over the formulas in this section and jump to CANN and LocalGLMnet. However if this is your first time hearing about either of the two, you might benefit from a more elaborate introduction than the one below (link) (link). Similarly, we skip a detailed analysis of the dataset, as it has been done extensively in the literature (link). 
+
+
+## GLM
+
+A GLM is a model of the form:
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+
+where g(.) is the link function, βl are the parameters, xl are the predictors and y the target. We want to find such βl that minimize a loss function L(y, yhat) which decreases as the predicted yhat gets closer to actual y.
+In our example we're modeling claim frequency so we choose poisson loss and a log link activation:
+g() = ... and L() = ... 
+Although in practice this optimization problem might be solved iteratively, there exists a closed form solution to this problem, which - importantly - is not the case in neural nets.
+There are many packages that allow us to train a glm with a selection of loss functions and optimizers. To fit a basic poisson GLM In R we can use the preinstalled stats package:
+
+```{r}
+
+glm_model = glm(formula = ClaimNb~.,
+                family = poisson,
+                data = fre_mtpl2_freq)
+
+```
+
+
+which is the minimal set of parameters we need.
+
+
+## Neural Network
+
+
+Let's come back to equation (1) and forget about the statistical context for a moment. Now, the g() transformation of the linear predictor (activation) is a chosen sigmoidal function and the optimal betas are obtained iteratively starting from a set of random values. Evaluating this randomly initialized function - neuron - would yield a poor result, far from our target, but the idea here is that we can ensemble an arbitrary number of them to produce a prediction in tandem and iteratively tweak the all betas to minimize the loss. Multiple neurons together form a layer and their result vector can be passed to another layer or the single (output) neuron. 
+
+<NEURAL NET SCHEMA>
+
+In contrast to a GLM, this architecture is very flexible and we can put together n_i of layers with arbitrary number of neurons and activations aiming for a model that is capable of representing non-linearities in our data accurately.
+
+
+Let us define this  feed-forward neural network architecture.
+Choose the number of layers k ≥ 1 and qk−1, qk ∈ N neurons in hidden layers. A network layer is a mapping
+
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+with qk hidden neurons in the k-th hidden later given by
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+with weights
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+and activation function
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+A general network architecture with K hidden layers for our Poisson regression problem is then obtained by adding an output layer as follows:
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+
+Listing 1 - FFNN Code
+
+```{r}
+
+
+
+
+```
+
+
+Note that a classical GLM can be obtained as a special case of FFN network, considering depth k=1 we receive a GLM regression function
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+With regression parameter 
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+## CANN
+
+A combined actuarial neural network (CANN) embeds a GLM into a neural network using a skip connection that directly links the input layer to the output layer (Figure 1).
+
+
+<FIGURE>
+
+
+It is essentially a neural network that uses the benchmark GLM’s predictions while learning additional interactions among variables to improve the overall model’s predictive power. There are three common approaches to using a CANN:
+The GLM element is non-trainable, so the benchmark GLM is always present and only the network part changes. This is the form of CANN included in the analysis to follow.
+The entire network parameter can be trained, meaning the benchmark GLM can be modified.
+A trainable credibility weighting can be introduced for the fixed GLM element within the CANN.
+
+
+So how does the CANN work in this exercise for the chosen scenario 1? 
+We are given a dataset of i insurance policies from which we assume the number of claims Ni are independent and Poisson distributed with:
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+for a given claims frequency function xi→ λ(xi), where xi describes the feature information of policy i and vi are the given volumes relating to the exposure in years.
+
+Having defined the GLM and FNN earlier we can combine both to define our CANN structure on the feature space X ⊂ Rq0 as the regression function λ : X → R+
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+The first term is simply the regression function from our GLM structure, and the second term is that of the NN.
+The GLM and NN have been combined through simple addition in the output layer. This makes one of the intercepts superfluous. Thus, we typically fix one (β0 of the GLM) and only train w0(K+1).
+Finally, it is important to add that the GLM and NN need to be defined on the same feature space X. This can require the merging of the feature space of the GLM and network.
+
+<Would probably move this paragraph into conclusion in a summation of different architectures. >
+
+While CANN may not generally outperform pure neural networks in minimising the objective loss function, its value for pricing teams lies in uncovering nuanced interactions that can enhance existing GLMs in production.
+
+
+Listing 2 - CANN Code
+
+```{r}
+
+
+
+
+```
+
+
+## LocalGLMnet
+
+In the CANN model, we combined a NN with a GLM by having the models predict in series, and together calculate the prediction for frequency. The LocalGLMnet combines the neural network and GLM in a very different way.
+We know that the GLM consists of a linear combination of parameters (βs), connected to the response variable through a link function. One set of parameters is used to predict for all records in the dataset. However, what if we could have a different set of parameters for each individual record in the dataset? This way, the different effect of variables on different customers can be captured in a very granular way - there is a custom set of βs for each customer in the dataset. This is what the LocalGLMnet achieves.
+The innovation of the LocalGLMnet is that a FFNN models the beta parameters for each customer. Then, the prediction for that customer is calculated with those βs in a GLM formula – something we are very familiar with. By retaining the GLM structure in the calculation of predictions in this way, we gain the advantages of a GLM’s explainability. The FFNN’s ability to model complex relationships in the data is still leveraged through the customer-specific calculation of the β parameters.
+
+
+The purpose of LocalGLMnets is to replace the (constant) regression parameters β=(β0,….q0)T by covariate dependent regression attentions x=1xqxT , which are modeled by FFN networks.
+Now we can consider a FFN network architecture of depth d Є N with input and output dimensions being equal to  q0=qd=q   to model the regression attentions (β parameters):
+
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+The LocalGLMnet is defined by the additive decomposition:
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+This simply means that for each customer, we calculate their prediction using the familiar GLM formula with link function. The β parameters in the GLM formula are different for each customer, as they depend on each customer’s profile, and are calculated by a FFNN.
+This naturally leads us to study the distribution of β parameter values across the levels of each variable in the model, for all policies in the dataset. From this, we can utilise the LocalGLMnet’s advantages in terms of interpretability, while also producing a model with greater ability to model complex interactions. When interpreting the β parameter values in this way, there are some cases in particular to watch out for:
+The Beta parameters can be used to determine the variables’ importance:
+·  	If  βj(x)=0 we can try to drop the term xj, because it isn’t contributing to the prediction
+·        If  βj(x)=βj we obtain a GLM term in xj, so the  is not feature dependent
+·        If  βj(x)=βj(xj) there are no interactions of term xj with xj'
+And you can also compute an importance measure as follows:
+
+\begin{align*}
+a & = b \\
+X &\sim {\sf Norm}(10, 3) \\
+5 & \le 10
+\end{align*}
+
+Also, the interaction effect in a variable can be quantified by calculating the gradient of the parameter's values along the dimensions of other potentially interacting variables: βj(x).  
+
+
+<model structure>
+
+```{r}
+
+
+
+
+```
+
+## Model fitting
+
+To compare models' performance we analyse the results of a 5 fold cross validation exercise. The code we presented earlier for each of the architectures is a bare minimum that yields a predictive model. In order to reference the hyperparameters in a common way we prepared a series of wrapper functions. Apart from aiding in handling the training, they are the same as the ones we covered above.
+
+We preprocess the data before feeding it to the models. This process is handled by the peproc() function. We choose to normalize the numerical variables and one-hot encode the categoricals. In order to avoid information leakage this function uses only the information from the training dataset. Note - it is possible to randomly select such a train-test split where the test set contains values of categorical variables previously unseen in training. 
+
+On a high level this procedure is simple but if you would like to train the models on your machine pulling our github repository is advised as we didn't show here all of the preprocessing/helper functions used below.
+
+The pseudocode for this section 
+
+```
+
+for i in fold number
+  
+  selection of training observations 
+  preprocessing function training
+  applying of preprocessing to train and test
+  
+  obtain performance of a homogenous model
+  train a glm and obtain performance
+  train a NN and obtain performance
+  train a localGLMnet and obtain performance
+  train a CANN and obtain performance
+
+next i
+
+```
+
+Here is the actual code: (not sure if there's any value in keeping that here)
+
+
+```{r}
+
+CV = 5 # K Folds
+
+# fold ID for each observation
+CV_vec = sample(1:CV,replace = T,size = nrow(fre_mtpl2_freq))
+
+# objects to store results
+models = list()
+results = list()
+losses = data.frame(CV = paste0("CV_",1:CV),
+                    glm = NA,
+                    ff_nn = NA,
+                    localGLMnet = NA,
+                    CANN = NA,
+                    XGB = NA)
+
+# Cross Validation loop
+for (i in 1:CV){
+  
+  train_rows = which(CV_vec != i)
+  
+  models[[paste0("CV_",i)]] = list()
+  
+  # object for storing per model/observation results
+  results[[paste0("CV_",i)]] = data.frame(ID = fre_mtpl2_freq$IDpol[-train_rows],
+                                          actual = fre_mtpl2_freq$ClaimNb[-train_rows],
+                                          glm = NA,
+                                          ff_nn = NA,
+                                          localGLMnet = NA,
+                                          CANN = NA) %>% 
+    mutate(homog = mean(fre_mtpl2_freq$ClaimNb[train_rows]))
+  
+  # data preprocessing
+  encoder = preproc(dt_frame = fre_mtpl2_freq[train_rows,],
+                    y = "ClaimNb",
+                    num = "norm",
+                    cat = "ohe",
+                    bypass = NULL,
+                    exclude = c("IDpol","Exposure"),
+                    verbose = T)
+  
+  # train - test split
+  train = encoder(fre_mtpl2_freq[train_rows,])
+  test = encoder(fre_mtpl2_freq[-train_rows,])
+  
+  # homogenous model ------------------------------------------------- 
+  
+  losses$homog[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                    y_pred = results[[paste0("CV_",i)]]$homog)
+  
+  # GLM ------------------------------------------------- 
+  
+  models[[paste0("CV_",i)]]$glm_model = glm(formula = ClaimNb~.,
+                                            family = poisson,
+                                            data = fre_mtpl2_freq[train_rows,-c(1,3)])
+  
+  results[[paste0("CV_",i)]]$glm = as.vector(predict(models[[paste0("CV_",i)]]$glm_model,
+                                                     fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
+  
+  losses$glm[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                   y_pred = results[[paste0("CV_",i)]]$glm)
+  
+  # ff_nn - Feed Forward Neural Network ------------------------------------------------
+  
+  models[[paste0("CV_",i)]]$ff_nn_model = train_ff_nn(dt = train[,-1],
+                                                      y = train[,1],
+                                                      vdt = list(x_val = test[,-1],
+                                                                 y_val = test[,1]),
+                                                      n_dropout = c(F,F,F),
+                                                      n_layers = 3,
+                                                      n_units = c(20,15,15),
+                                                      n_activ = c("sigmoid","sigmoid","sigmoid"),
+                                                      lr = 0.005,
+                                                      bs = 2^12,
+                                                      ep = 1000)
+  
+  results[[paste0("CV_",i)]]$ff_nn = predict(models[[paste0("CV_",i)]]$ff_nn_model,test[,-1])[,1]
+  
+  losses$ff_nn[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                     y_pred = results[[paste0("CV_",i)]]$ff_nn)
+  
+  # LocalGLMnet -------------------------------------------
+  
+  models[[paste0("CV_",i)]]$localGLMnet_model = train_LocalGLMnet(dt = train[,-1],
+                                                                  y = train[,1],
+                                                                  vdt = list(x_val = test[,-1],
+                                                                             y_val = test[,1]),
+                                                                  n_dropout = c(F,F,F),
+                                                                  n_layers = 3,
+                                                                  n_units = c(20,15,15),
+                                                                  n_activ = c("tanh","tanh","tanh"),
+                                                                  lr = 0.005,
+                                                                  bs = 2^12,
+                                                                  ep = 1000)
+  
+  results[[paste0("CV_",i)]]$localGLMnet = predict(models[[paste0("CV_",i)]]$localGLMnet_model,test[,-1])[,1]
+  
+  losses$localGLMnet[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                           y_pred = results[[paste0("CV_",i)]]$localGLMnet)
+  
+  # CANN  - Combined Actuarial Neural Network ------------------------------------------
+  
+  #weights - used as initialization
+  learn_GLM = fitted(models[[paste0("CV_",i)]]$glm_model)
+  test_GLM = results[[paste0("CV_",i)]]$glm
+  
+  w_learn = as.matrix(log(learn_GLM))
+  w_test = as.matrix(log(test_GLM))
+  
+  models[[paste0("CV_",i)]]$CANN_model = train_CANN(dt = train[,-1],
+                                                    y = train[,1],
+                                                    vdt = list(x_val =list( test[,-1], w_test),
+                                                               y_val = test[,1]),
+                                                    w=w_learn,                                                    
+                                                    n_layers = 3,
+                                                    n_units = c(20,15,15),
+                                                    n_activ = c("tanh","tanh","tanh"),
+                                                    lr = 0.005,
+                                                    bs = 2^12,
+                                                    ep = 1000)
+  
+  results[[paste0("CV_",i)]]$CANN = predict(models[[paste0("CV_",i)]]$CANN_model,list(as.matrix(test[,-1]),w_test))[,1]
+  
+  losses$CANN[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                    y_pred = results[[paste0("CV_",i)]]$CANN)
+  
+}
+
+
+```
+
+## Results Analysis
+
+Functions for generating the charts are also available in the repository. Here we will focus just on the their interpretation. 
+
+
+```{r,eval=T, echo=F,results = 'hide', message = FALSE, warning = FALSE}
+
+source("TDS_functions.R")
+
+analysis = readRDS("final_analysis.rds")
+
+results = readRDS("final_results.rds")$results
+
+analysis_wide = bind_rows(results,.id = "id")  %>% 
+  base::merge(fre_mtpl2_freq,
+        by.x = "ID",
+        by.y = "IDpol")
+
+
+```
+
+text
+
+```{r,eval=T,echo=F}
+
+analysis %>%
+  filter(name!="homog") %>% 
+  rename(model=name) %>% 
+  ggplot(aes(x = poiss,fill=model,color=model,linetype=model))+
+  geom_density(alpha=0.3,size=1)+
+  ggplot2::scale_fill_manual(values = c("blue","yellow","green","grey"))+
+  xlim(0,0.75)+
+  # facet_wrap(~name)+
+  ggdark::dark_theme_classic()+
+  theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
+  ggtitle("Poisson deviance per observation, per model")+
+  xlab("Poisson deviance")
+
+
+```
+
+
+
+```{r,eval=T,echo=F}
+
+multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
+              y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
+                                                                   ff_nn,
+                                                                   localGLMnet,
+                                                                   CANN,
+                                                                   # XGB,
+                                                                   homog))+
+  ggtitle("Combined lift chart")+
+  xlab("Tiles")+
+  ylab("Implied frequency")+
+  ggdark::dark_theme_classic()
+
+
+
+```
+
+```{r,eval=T,echo=F}
+
+one_way_chart(dt = analysis_wide %>% 
+                # filter(DrivAge>24,DrivAge<68) %>% 
+                filter(DrivAge<80) %>% 
+                mutate(DrivAge = as.character(DrivAge)),
+              models = c("glm","localGLMnet"),
+              xvar = "DrivAge", # string
+              buckets = 10)
+
+one_way_chart(dt = analysis_wide %>% 
+                # filter(DrivAge>24,DrivAge<68) %>% 
+                filter(DrivAge<80) %>% 
+                mutate(DrivAge = as.character(DrivAge)),
+              models = c("glm","CANN"),
+              xvar = "DrivAge", # string
+              buckets = 10)
+
+one_way_chart(dt = analysis_wide %>% 
+                # filter(DrivAge>24,DrivAge<68) %>% 
+                filter(DrivAge<80) %>% 
+                mutate(DrivAge = as.character(DrivAge)),
+              models = c("glm","ff_nn"),
+              xvar = "DrivAge", # string
+              buckets = 10)
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+
+## Conclusions
+
+can be kept short
+
+## Appendix 
+
+(pkg versions and info on py/R connection)
+
+### Packages
+
+other attached packages:
+mlrMBO_1.1.5.1      smoof_1.6.0.3       checkmate_2.2.0     mlr_2.19.1          ParamHelpers_1.14.1 keras_2.11.1       
+tensorflow_2.11.0   reticulate_1.30     xgboost_1.7.5.1     lubridate_1.9.2     forcats_1.0.0       stringr_1.5.0      
+dplyr_1.1.2         purrr_1.0.1         readr_2.1.4         tidyr_1.3.0         tibble_3.2.1        ggplot2_3.4.2      
+tidyverse_2.0.0    
+
+### Using Tensorflow in R
+
+conda env + all pkgs
+install pkgs in R (reticulate, tf, keras)
+use reticulate 
+
+```{r}
+
+library(reticulate)
+library(tensorflow)
+library(keras)
+
+use_condaenv(condaenv = "ADSWPNL",required = T) # ADSWP is a py env with tensorflow v 2.7 
+set_random_seed(seed, disable_gpu = FALSE)
+py_module_available("tensorflow")
+is_keras_available()
+
+py_config()
+tensorflow::tf_version()
+
+
+
+```
+
+
+
+
+```{r}
+
+
+# empty
+
+
+
+
+
+```
+
+
+
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

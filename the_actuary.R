@@ -154,6 +154,8 @@ analysis = bind_rows(results,.id = "id")  %>%
          poiss = Vectorize(poisson_deviance)(y_true = actual,
                                              y_pred = value)) 
 
+saveRDS(analysis,file = "final_analysis.rds")
+
 # ovarall and per fold results
 rbind(losses,
       losses %>%
