@@ -9,11 +9,13 @@ knitr::opts_chunk$set(eval = FALSE,echo = TRUE,message = FALSE, warning = FALSE)
 # knitr::opts_chunk$set()
 
 
+
+
 ```
 
 ## Introduction
 
-Insurers face a fascinating challenge every day in conducting business; they must sell a product for a certain price that carries an uncertain cost. In tackling this problem, insurers strive to build the best possible predictive risk and pricing models, to distinguish between the low and high-risk customers in the marketplace. The span of statistical models used for this task is wide and varied, from the enduring GLM to the intricate Feed Forward Neural Network (FFNN). Recently, some very promising new models have arrived on the scene, including the Combined Actuarial Neural Network (CANN), and the LocalGLMnet. Both of these models combine GLMs and neural networks to avail of the relative strengths of each architecture. This article will explain how the above four model architectures work, and will test how they perform on a dataset of real-world motor insurance policies. Buckle up!  
+Insurers face a fascinating challenge every day in conducting business; they must sell a product for a certain price that carries an uncertain cost. In tackling this problem, insurers strive to build the best possible predictive risk and pricing models, to distinguish between the low and high-risk customers in the marketplace. The span of statistical models used for this task is wide and varied, from the enduring GLM to the intricate Feed Forward Neural Network (FFNN). Recently, some very promising new models have arrived on the scene, including the Combined Actua rial Neural Network (CANN), and the LocalGLMnet. Both of these models combine GLMs and neural networks to avail of the relative strengths of each architecture. This article will explain how the above four model architectures work, and will test how they perform on a dataset of real-world motor insurance policies. Buckle up!  
 
 
 
@@ -23,7 +25,6 @@ Insurers face a fascinating challenge every day in conducting business; they mus
 ## Project Setup
 
 To follow along, you can refer to the github repository or download the data we use from there. For the detailed information about package versions and installation guides you can refer to the appendix. 
-
 
 First we set up our project and pull the data:
 
@@ -51,27 +52,36 @@ fre_mtpl2_freq = read.csv("freMTPL2freq.csv") %>%
 ```
 
 
-<WRITE AT LEAST WHAT ARE THE Y and X's>
+A quick look at the data we are going to work with:
 
-We start with just a reminder of a GLM and a feed forward neural network. If you are comfortable with both models feel free to just glance over the formulas in this section and jump to CANN and LocalGLMnet. However if this is your first time hearing about either of the two, you might benefit from a more elaborate introduction than the one below (link) (link). Similarly, we skip a detailed analysis of the dataset, as it has been done extensively in the literature (link). 
+```{r}
+
+summary(fre_mtpl2_freq %>% mutate_if(is.character,as.factor))
+
+```
+
+We start with just a reminder of a GLM and a feed forward neural network. If you are comfortable with both models feel free to just glance over the formulas in this section and jump to CANN and LocalGLMnet. However if this is your first time hearing about either of the two, you might benefit from a more elaborate introduction than the one below [CasACT](https://www.casact.org/sites/default/files/2021-01/05-Goldburd-Khare-Tevet.pdf) [youtube](https://www.youtube.com/watch?v=ddCO2714W-o&list=PLJ71tqAZr197DkSiGT7DD9dMYxkyZX0ti). Similarly, we skip a detailed analysis of the dataset, as it has been done extensively in the literature [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764). 
 
 
 ## GLM
 
 A GLM is a model of the form:
 
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+\[
+\tag{1}
+\hat{y} = g(X \beta + \beta_0)
+\]
 
+where \( X \in \mathbb{R}^{n \times p} \) is the matrix of input features, \( \beta \in \mathbb{R}^p \) is the vector of coefficients, and \( \beta_0 \in \mathbb{R} \) is the intercept.
 
-where g(.) is the link function, βl are the parameters, xl are the predictors and y the target. We want to find such βl that minimize a loss function L(y, yhat) which decreases as the predicted yhat gets closer to actual y.
-In our example we're modeling claim frequency so we choose poisson loss and a log link activation:
-g() = ... and L() = ... 
-Although in practice this optimization problem might be solved iteratively, there exists a closed form solution to this problem, which - importantly - is not the case in neural nets.
-There are many packages that allow us to train a glm with a selection of loss functions and optimizers. To fit a basic poisson GLM In R we can use the preinstalled stats package:
+We want to find such \( \beta \) vector that minimizes a loss function \( \mathcal{L}(y,hat{y}) \) which decreases as the predicted \( \hat(y) \) gets closer to actual \( \y \). In our example we're modeling claim frequency so we choose poisson loss and a log link activation: \( \g(x) = exp(x)\) and the loss:
+
+\[
+\mathcal{L}(\hat{y}, y) = \sum_{i=1}^{n} (\hat{y}_i - y_i \log(\hat{y}_i)) 
+\]
+
+Although in practice this optimization problem might be solved iteratively, there exists a closed form solution to this problem, which - importantly - is not the case in neural nets. There are many packages that allow us to train a glm with a selection of loss functions and optimizers. To fit a basic poisson GLM In R we can use the pre-installed stats package:
+
 
 ```{r}
 
@@ -81,61 +91,52 @@ glm_model = glm(formula = ClaimNb~.,
 
 ```
 
-
 which is the minimal set of parameters we need.
-
 
 ## Neural Network
 
-
-Let's come back to equation (1) and forget about the statistical context for a moment. Now, the g() transformation of the linear predictor (activation) is a chosen sigmoidal function and the optimal betas are obtained iteratively starting from a set of random values. Evaluating this randomly initialized function - neuron - would yield a poor result, far from our target, but the idea here is that we can ensemble an arbitrary number of them to produce a prediction in tandem and iteratively tweak the all betas to minimize the loss. Multiple neurons together form a layer and their result vector can be passed to another layer or the single (output) neuron. 
+Let's come back to equation (1) and forget about the statistical context for a moment. Now, the g() transformation of the linear predictor (activation) is a chosen sigmoidal function and the optimal betas are obtained iteratively starting from a set of random values. Evaluating this randomly initialized function - neuron - would yield a poor result, far from our target, but the idea here is that we can ensemble an arbitrary number of them to produce a prediction in tandem and iteratively tweak the all betas to minimize the loss. Multiple neurons together form a layer and their result vector can be passed to another layer or the single (output) neuron. This is often easier to grasp by looking at a schema:
 
 <NEURAL NET SCHEMA>
 
 In contrast to a GLM, this architecture is very flexible and we can put together n_i of layers with arbitrary number of neurons and activations aiming for a model that is capable of representing non-linearities in our data accurately.
 
 
-Let us define this  feed-forward neural network architecture.
-Choose the number of layers k ≥ 1 and qk−1, qk ∈ N neurons in hidden layers. A network layer is a mapping
+Let us define this feed-forward neural network architecture. Choose the number of layers \( k \ge 1 \) and \( q_{k-1}, q_k \in \mathbb{N} \) neurons in hidden layers. A network layer is a mapping
 
+\[
+\tag{1}
+f_k(x) = W_k x + b_k 
+\]
 
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+with \( q_k \) hidden neurons in the \( k \)-th hidden layer given by
 
-with qk hidden neurons in the k-th hidden later given by
-
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+\[
+\tag{*}
+h_k = \sigma(f_k(x))
+\]
 
 with weights
 
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+\[
+\tag{*}
+W_k \in \mathbb{R}^{q_k \times q_{k-1}}, \quad b_k \in \mathbb{R}^{q_k} 
+\]
 
 and activation function
 
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+\[
+\tag{*}
+\sigma: \mathbb{R} \rightarrow \mathbb{R}
+\]
 
-A general network architecture with K hidden layers for our Poisson regression problem is then obtained by adding an output layer as follows:
+A general network architecture with \( K \) hidden layers for our Poisson regression problem is then obtained by adding an output layer as follows:
 
-\begin{align*}
-a & = b \\
-X &\sim {\sf Norm}(10, 3) \\
-5 & \le 10
-\end{align*}
+\[
+\tag{*}
+\hat{y} = g(W_{K+1} h_K + b_{K+1}) 
+\]
+
 
 
 Listing 1 - FFNN Code
@@ -443,7 +444,7 @@ analysis = readRDS("final_analysis.rds")
 
 results = readRDS("final_results.rds")$results
 
-analysis_wide = bind_rows(results,.id = "id")  %>% 
+analysis_wide = bind_rows(results$results,.id = "id")  %>% 
   base::merge(fre_mtpl2_freq,
         by.x = "ID",
         by.y = "IDpol")
@@ -451,7 +452,45 @@ analysis_wide = bind_rows(results,.id = "id")  %>%
 
 ```
 
-text
+
+# poisson loss per cv and model
+
+```{r}
+
+
+
+rbind(results$losses,
+      results$losses %>%
+        pivot_longer(cols = !CV) %>%
+        group_by(name) %>%
+        summarise(mean_poiss = mean(value)) %>%
+        arrange(mean_poiss) %>%
+        pivot_wider(values_from = mean_poiss,names_from = name) %>%
+        mutate(CV = "mean_poiss"))
+
+
+```
+
+
+Gini per model. (we can further split per CV if needed)
+
+
+```{r}
+
+lapply(c( "glm","ff_nn","localGLMnet","CANN","homog"), 
+       function(x){ 
+         
+         MLmetrics::Gini(y_pred = analysis_wide[[x]],y_true = analysis_wide$actual) 
+         
+         }) %>% 
+  
+  
+  set_names(c( "glm","ff_nn","localGLMnet","CANN","homog")) %>% unlist()
+
+
+```
+
+
 
 ```{r,eval=T,echo=F}
 
@@ -463,7 +502,7 @@ analysis %>%
   ggplot2::scale_fill_manual(values = c("blue","yellow","green","grey"))+
   xlim(0,0.75)+
   # facet_wrap(~name)+
-  ggdark::dark_theme_classic()+
+  # ggdark::dark_theme_classic()+
   theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
   ggtitle("Poisson deviance per observation, per model")+
   xlab("Poisson deviance")

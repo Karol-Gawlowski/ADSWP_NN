@@ -365,7 +365,7 @@ the low and high-risk customers in the marketplace. The span of
 statistical models used for this task is wide and varied, from the
 enduring GLM to the intricate Feed Forward Neural Network (FFNN).
 Recently, some very promising new models have arrived on the scene,
-including the Combined Actuarial Neural Network (CANN), and the
+including the Combined Actua rial Neural Network (CANN), and the
 LocalGLMnet. Both of these models combine GLMs and neural networks to
 avail of the relative strengths of each architecture. This article will
 explain how the above four model architectures work, and will test how
@@ -401,34 +401,65 @@ fre_mtpl2_freq = read.csv(&quot;freMTPL2freq.csv&quot;) %&gt;%
            ClaimNb = pmin(15, ClaimNb / Exposure)
   ) %&gt;% 
   slice(sample(1:nrow(.),replace = F))</code></pre>
-<p>&lt;WRITE AT LEAST WHAT ARE THE Y and X’s&gt;</p>
+<p>A quick look at the data we are going to work with:</p>
+<pre class="r"><code>summary(fre_mtpl2_freq %&gt;% mutate_if(is.character,as.factor))</code></pre>
 <p>We start with just a reminder of a GLM and a feed forward neural
 network. If you are comfortable with both models feel free to just
 glance over the formulas in this section and jump to CANN and
 LocalGLMnet. However if this is your first time hearing about either of
 the two, you might benefit from a more elaborate introduction than the
-one below (link) (link). Similarly, we skip a detailed analysis of the
-dataset, as it has been done extensively in the literature (link).</p>
+one below <a href="https://www.casact.org/sites/default/files/2021-01/05-Goldburd-Khare-Tevet.pdf">CasACT</a>
+<a href="https://www.youtube.com/watch?v=ddCO2714W-o&amp;list=PLJ71tqAZr197DkSiGT7DD9dMYxkyZX0ti">youtube</a>.
+Similarly, we skip a detailed analysis of the dataset, as it has been
+done extensively in the literature <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764">Case
+Study: French Motor Third-Party Liability Claims</a>.</p>
 </div>
 <div id="glm" class="section level2">
 <h2>GLM</h2>
 <p>A GLM is a model of the form:</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
-<p>where g(.) is the link function, βl are the parameters, xl are the
-predictors and y the target. We want to find such βl that minimize a
-loss function L(y, yhat) which decreases as the predicted yhat gets
-closer to actual y. In our example we’re modeling claim frequency so we
-choose poisson loss and a log link activation: g() = … and L() = …
-Although in practice this optimization problem might be solved
+<p><span class="math display">\[
+\tag{1}
+\hat{y} = g(X \beta + \beta_0)
+\]</span></p>
+<p>where <span class="math inline">\(X \in \mathbb{R}^{n \times
+p}\)</span> is the matrix of input features, <span class="math inline">\(\beta \in \mathbb{R}^p\)</span> is the vector of
+coefficients, and <span class="math inline">\(\beta_0 \in
+\mathbb{R}\)</span> is the intercept.</p>
+<p>The predicted values <span class="math inline">\(\hat{y}\)</span> are
+then obtained by applying a link function <span class="math inline">\(g\)</span> to the linear predictor:</p>
+<p><span class="math display">\[
+\tag{1}
+\hat{y} = g(\eta)
+\]</span></p>
+<p>In the context of a Poisson regression, the link function <span class="math inline">\(g\)</span> is the exponential function, leading
+to:</p>
+<p><span class="math display">\[
+\tag{1}
+\hat{y} = \exp(\eta)
+\]</span></p>
+<hr />
+<p>We want to find such <span class="math inline">\(\beta\)</span>
+vector that minimizes a loss function <span class="math inline">\(\mathcal{L}(y,hat{y})\)</span> which decreases as
+the predicted <span class="math inline">\(\hat(y)\)</span> gets closer
+to actual <span class="math inline">\(\y\)</span>. In our example we’re
+modeling claim frequency so we choose poisson loss and a log link
+activation: <span class="math inline">\(\g(x) = exp(x)\)</span> and the
+loss:</p>
+<p><span class="math display">\[
+\mathcal{L}(\hat{y}, y) = \sum_{i=1}^{n} (\hat{y}_i - y_i
+\log(\hat{y}_i))
+\]</span></p>
+<p>Although in practice this optimization problem might be solved
 iteratively, there exists a closed form solution to this problem, which
 - importantly - is not the case in neural nets. There are many packages
 that allow us to train a glm with a selection of loss functions and
 optimizers. To fit a basic poisson GLM In R we can use the preinstalled
 stats package:</p>
+<p>Here, <span class="math inline">\(\hat{y}_i\)</span> represents the
+predicted values and <span class="math inline">\(y_i\)</span> represents
+the observed values.</p>
+<p>You can include this formula directly in your R Markdown document to
+render the Poisson loss function.</p>
 <pre class="r"><code>glm_model = glm(formula = ClaimNb~.,
                 family = poisson,
                 data = fre_mtpl2_freq)</code></pre>
@@ -452,39 +483,36 @@ put together n_i of layers with arbitrary number of neurons and
 activations aiming for a model that is capable of representing
 non-linearities in our data accurately.</p>
 <p>Let us define this feed-forward neural network architecture. Choose
-the number of layers k ≥ 1 and qk−1, qk ∈ N neurons in hidden layers. A
-network layer is a mapping</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
-<p>with qk hidden neurons in the k-th hidden later given by</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
+the number of layers <span class="math inline">\(k \ge 1\)</span> and
+<span class="math inline">\(q_{k-1}, q_k \in \mathbb{N}\)</span> neurons
+in hidden layers. A network layer is a mapping</p>
+<p><span class="math display">\[
+\tag{1}
+f_k(x) = W_k x + b_k
+\]</span></p>
+<p>with <span class="math inline">\(q_k\)</span> hidden neurons in the
+<span class="math inline">\(k\)</span>-th hidden layer given by</p>
+<p><span class="math display">\[
+\tag{*}
+h_k = \sigma(f_k(x))
+\]</span></p>
 <p>with weights</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
+<p><span class="math display">\[
+\tag{*}
+W_k \in \mathbb{R}^{q_k \times q_{k-1}}, \quad b_k \in \mathbb{R}^{q_k}
+\]</span></p>
 <p>and activation function</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
-<p>A general network architecture with K hidden layers for our Poisson
+<p><span class="math display">\[
+\tag{*}
+\sigma: \mathbb{R} \rightarrow \mathbb{R}
+\]</span></p>
+<p>A general network architecture with <span class="math inline">\(K\)</span> hidden layers for our Poisson
 regression problem is then obtained by adding an output layer as
 follows:</p>
-<p><span class="math display">\[\begin{align*}
-a &amp; = b \\
-X &amp;\sim {\sf Norm}(10, 3) \\
-5 &amp; \le 10
-\end{align*}\]</span></p>
+<p><span class="math display">\[
+\tag{*}
+\hat{y} = g(W_{K+1} h_K + b_{K+1})
+\]</span></p>
 <p>Listing 1 - FFNN Code</p>
 <p>Note that a classical GLM can be obtained as a special case of FFN
 network, considering depth k=1 we receive a GLM regression function</p>
