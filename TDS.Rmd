@@ -80,6 +80,30 @@ We want to find such \( \beta \) vector that minimizes a loss function \( \mathc
 \mathcal{L}(\hat{y}, y) = \sum_{i=1}^{n} (\hat{y}_i - y_i \log(\hat{y}_i)) 
 \]
 
+```{r,eval=T}
+
+poisson_deviance = function(y_true,y_pred,keras=F,correction = +10^-7){
+  
+  # stopifnot(length(true)!=length(pred),"different input lengths!")
+  
+  if(keras){
+    # keras:
+    # pd = y_pred - y_true * log(y_pred)
+    
+  }else{
+    
+    pd =  mean((y_pred - y_true - y_true * log((y_pred+correction)/(y_true+correction))))
+    
+  }
+  
+  return(2 * pd)
+  
+}
+
+
+```
+
+
 Although in practice this optimization problem might be solved iteratively, there exists a closed form solution to this problem, which - importantly - is not the case in neural nets. There are many packages that allow us to train a glm with a selection of loss functions and optimizers. To fit a basic poisson GLM In R we can use the pre-installed stats package:
 
 
@@ -299,7 +323,7 @@ next i
 Here is the actual code: (not sure if there's any value in keeping that here)
 
 
-```{r}
+```{r,echo=F}
 
 CV = 5 # K Folds
 
@@ -440,9 +464,15 @@ Functions for generating the charts are also available in the repository. Here w
 
 source("TDS_functions.R")
 
-analysis = readRDS("final_analysis.rds")
+results = readRDS("final_results.rds")
 
-results = readRDS("final_results.rds")$results
+analysis = bind_rows(results$results,.id = "id")  %>% 
+  select(id,actual,glm,ff_nn,localGLMnet,CANN,homog) %>% 
+  pivot_longer(cols = glm:homog) %>% 
+  mutate(actual = actual,
+         value = value,
+         poiss = Vectorize(poisson_deviance)(y_true = actual,
+                                             y_pred = value)) 
 
 analysis_wide = bind_rows(results$results,.id = "id")  %>% 
   base::merge(fre_mtpl2_freq,
@@ -450,13 +480,15 @@ analysis_wide = bind_rows(results$results,.id = "id")  %>%
         by.y = "IDpol")
 
 
+
+
 ```
 
 
-# poisson loss per cv and model
+
 
 ```{r}
-
+# poisson loss per cv and model, will add formatting later
 
 
 rbind(results$losses,
@@ -472,10 +504,12 @@ rbind(results$losses,
 ```
 
 
-Gini per model. (we can further split per CV if needed)
+Gini per model. (we can further split per CV if needed, I will add the table formatting later)
 
 
 ```{r}
+
+
 
 lapply(c( "glm","ff_nn","localGLMnet","CANN","homog"), 
        function(x){ 
@@ -485,7 +519,12 @@ lapply(c( "glm","ff_nn","localGLMnet","CANN","homog"),
          }) %>% 
   
   
-  set_names(c( "glm","ff_nn","localGLMnet","CANN","homog")) %>% unlist()
+  set_names(c( "glm","ff_nn","localGLMnet","CANN","homog")) %>% unlist() #%>%
+  # kable("html", escape = FALSE, col.names = c("p", "distribution", "domain \\(Y\\)", "domain \\(\\mu\\)")) %>%
+  # kable_styling(full_width = FALSE, position = "left") %>%
+  # column_spec(1, bold = TRUE) %>%
+  # column_spec(3:4, width = "3cm") %>%
+  # row_spec(0, bold = TRUE, color = "black", background = "lightgrey")
 
 
 ```
@@ -511,50 +550,39 @@ analysis %>%
 ```
 
 
+if that's interesting, we could drill look at lifts for subsets of the data.
 
 ```{r,eval=T,echo=F}
 
-multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
-              y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
+multiple_lift(y_true = bind_rows(results$results,.id = "id") %>% pull(actual),
+              y_pred_df = bind_rows(results$results,.id = "id") %>% select(glm,
                                                                    ff_nn,
                                                                    localGLMnet,
                                                                    CANN,
                                                                    # XGB,
-                                                                   homog))+
+                                                                   homog)) +
   ggtitle("Combined lift chart")+
   xlab("Tiles")+
-  ylab("Implied frequency")+
-  ggdark::dark_theme_classic()
+  ylab("Implied frequency")
 
 
 
 ```
 
+we can select a number of one way charts for different models/variables 
+
 ```{r,eval=T,echo=F}
 
-one_way_chart(dt = analysis_wide %>% 
-                # filter(DrivAge>24,DrivAge<68) %>% 
-                filter(DrivAge<80) %>% 
-                mutate(DrivAge = as.character(DrivAge)),
-              models = c("glm","localGLMnet"),
-              xvar = "DrivAge", # string
-              buckets = 10)
+# nr of buckets
+k=5
 
 one_way_chart(dt = analysis_wide %>% 
-                # filter(DrivAge>24,DrivAge<68) %>% 
-                filter(DrivAge<80) %>% 
-                mutate(DrivAge = as.character(DrivAge)),
-              models = c("glm","CANN"),
-              xvar = "DrivAge", # string
-              buckets = 10)
-
-one_way_chart(dt = analysis_wide %>% 
-                # filter(DrivAge>24,DrivAge<68) %>% 
-                filter(DrivAge<80) %>% 
-                mutate(DrivAge = as.character(DrivAge)),
-              models = c("glm","ff_nn"),
-              xvar = "DrivAge", # string
-              buckets = 10)
+                filter(DrivAge<81) %>% 
+                mutate(DrivAgeBucket = cut(DrivAge, breaks = seq(0, max(DrivAge) + k, by = k)) %>% as.character(), 
+                       DrivAge = as.character(DrivAge)),
+              models = c("glm","localGLMnet"), # string vector
+              xvar = "DrivAgeBucket", # string
+              buckets = 10) # only for numerical vars
 
 
 ```
@@ -610,37 +638,3 @@ tensorflow::tf_version()
 
 ```
 
-
-
-
-```{r}
-
-
-# empty
-
-
-
-
-
-```
-
-
-
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
