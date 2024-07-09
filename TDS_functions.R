@@ -58,7 +58,8 @@ one_way_chart = function(dt = analysis_wide, #wide format
 
 multiple_lift = function(y_true,
                          y_pred_df,
-                         tiles = 10){
+                         tiles = 10,
+                         diff_from_actual = F){
   
   tiles_list = list()
   
@@ -68,7 +69,10 @@ multiple_lift = function(y_true,
                                  actual = y_true) %>% 
       mutate(tiles = ntile(model,tiles)) %>%
       group_by(tiles) %>% 
-      summarise(model = mean(model)) %>% 
+      {if(diff_from_actual) 
+        summarise(.,model = mean(model) - mean(actual))
+        else 
+        summarise(.,model = mean(model))} %>% 
       pull(model)
   }
   
@@ -77,6 +81,8 @@ multiple_lift = function(y_true,
     set_names(c(colnames(y_pred_df),"tiles")) %>% 
     pivot_longer(cols = !tiles) %>% 
     ggplot(aes(x = tiles,y=value,group=name,color=name,linetype=name))+
+    {if(diff_from_actual) geom_abline(intercept = 0,slope = 0,color="white")}+
+    {if(diff_from_actual) facet_wrap(~name,ncol = 1)}+
     geom_point()+
     geom_line()
   

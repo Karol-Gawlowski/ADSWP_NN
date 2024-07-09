@@ -84,19 +84,9 @@ We want to find such \( \beta \) vector that minimizes a loss function \( \mathc
 
 poisson_deviance = function(y_true,y_pred,keras=F,correction = +10^-7){
   
-  # stopifnot(length(true)!=length(pred),"different input lengths!")
+  stopifnot(length(true)!=length(pred),"different input lengths!")
   
-  if(keras){
-    # keras:
-    # pd = y_pred - y_true * log(y_pred)
-    
-  }else{
-    
-    pd =  mean((y_pred - y_true - y_true * log((y_pred+correction)/(y_true+correction))))
-    
-  }
-  
-  return(2 * pd)
+  2 * mean((y_pred - y_true - y_true * log((y_pred + correction) / (y_true + correction))))
   
 }
 

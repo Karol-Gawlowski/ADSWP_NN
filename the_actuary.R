@@ -197,4 +197,3 @@ multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
   xlab("Tiles")+
   ylab("Implied frequency")+
   ggdark::dark_theme_classic()
-
